@@ -38,7 +38,7 @@ app.post('/api/analyze-resume', upload.single('resume'), async (req, res) => {
   if (!req.file || !req.body.data) {
     return res.status(400).json({ error: 'Resume and questions are required.' });
   } else {
-    await runAssistant(req,res,resumeAssistantId,"Please look at the candidate's resume that is attached evlaute this application for the product management position at a large tech company like Google");
+    await runAssistant(req,res,resumeAssistantId,"Please look at the candidate's resume that is attached and evlaute this application for a product management position. Make sure the output is in json format using the evaluate_resume tool");
     //res.json({ answer });
   } 
 });
@@ -101,6 +101,19 @@ const runAssistant = async (req, res, assistantId, instruction) => {
       const messages = await openai.beta.threads.messages.list(run.thread_id);
       // Send the first message content as the response
       res.send(messages.data[0].content[0].text.value);
+    } else if(run.status === 'requires_action'){
+      console.log('in requires action');
+      console.log(run.required_action.submit_tool_outputs);
+      console.log(run.required_action.submit_tool_outputs.tool_calls);
+      console.log(run.required_action.submit_tool_outputs.tool_calls[0].id);
+      /*run = await openai.beta.threads.runs.submitToolOutputsAndPoll(
+        thread.id,
+        run.id,
+        { tool_outputs: {tool_call_id:run.required_action.submit_tool_outputs.tool_calls} }
+      );*/
+    
+      // Send the first message content as the response
+      res.send(run.required_action.submit_tool_outputs.tool_calls[0].function.arguments);
     } else {
       console.log(run.status);
       res.status(500).send('Run not completed');
@@ -151,7 +164,7 @@ app.post('/api/ideafirstreview', async (req, res) => {
 
 // Add more routes as needed
 app.post('/api/finalreview', async (req, res) => {
-  const instruction = "Please evaluate the idea by providing a score out of 10 overall and then breaking it down into it's components";
+  const instruction = "Please evaluate this candidate output in json as specific in assistnant instructions";
   await runAssistant(req, res, startupAssistantId, instruction);
 });
 
