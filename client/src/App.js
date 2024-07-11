@@ -12,11 +12,21 @@ function App() {
   const [finalResult, setFinalResult] = useState(null);
   const [isValid, setIsValid] = useState(true);
 
+  // New state variables for the resume and candidate questions
+  const [resume, setResume] = useState(null);
+  const [candidateResponses, setCandidateResponses] = useState(Array(3).fill(''));
+
   const questions = [
     "What problem does your startup idea solve?",
     "Who is your target audience?",
     "What makes your idea unique?",
     "How do you plan to monetize your idea?"
+  ];
+
+  const candidateQuestions = [
+    "Why are you interested in this role?",
+    "What is your experience with product management?",
+    "How do you handle conflicts in a team?"
   ];
 
   const placeholders = [
@@ -30,6 +40,16 @@ function App() {
     const newResponses = [...responses];
     newResponses[page - 1] = e.target.value;
     setResponses(newResponses);
+  };
+
+  const handleCandidateInputChange = (e, index) => {
+    const newResponses = [...candidateResponses];
+    newResponses[index] = e.target.value;
+    setCandidateResponses(newResponses);
+  };
+
+  const handleResumeUpload = (e) => {
+    setResume(e.target.files[0]);
   };
 
   const handleNext = () => {
@@ -96,6 +116,36 @@ function App() {
     setLoading(false);
   };
 
+  const handleResumeSubmit = async () => {
+    if (!resume || candidateResponses.some(response => response.split(' ').length < 5)) {
+      setIsValid(false);
+      return;
+    }
+    setLoading(true);
+  
+    const formData = new FormData();
+    formData.append('resume', resume);
+    const questionsAndAnswers = candidateQuestions.flatMap((question, index) => [
+      { role: "assistant", content: question },
+      { role: "user", content: candidateResponses[index] }
+    ]);
+    console.log(questionsAndAnswers);
+    formData.append('data',JSON.stringify(questionsAndAnswers));
+  
+    try {
+      const response = await axios.post('/api/analyze-resume', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      setDynamicQuestion(response.data);
+      setResult(response.data);
+    } catch (error) {
+      console.error('Error analyzing resume:', error);
+    }
+    setLoading(false);
+  };
+
   const handleRestart = () => {
     setPage(1);
     setResponses(Array(4).fill(''));
@@ -103,6 +153,8 @@ function App() {
     setDynamicQuestion('');
     setDynamicResponse('');
     setFinalResult(null);
+    setResume(null);
+    setCandidateResponses(Array(3).fill(''));
   };
 
   useEffect(() => {
@@ -111,7 +163,7 @@ function App() {
 
   return (
     <div className="App">
-      <h1>Idea Decider</h1>
+      <h1>Candidate Evaluator</h1>
       {finalResult ? (
         <>
           <h2>Final Evaluation:</h2>
@@ -136,27 +188,26 @@ function App() {
         </>
       ) : (
         <>
-          <div className={`question-container ${!isValid ? 'shake' : ''}`}>
-            <h2>Question {page}</h2>
-            <p>{questions[page - 1]}</p>
-            <textarea
-              className={`input-box ${!isValid ? 'invalid' : ''}`}
-              value={responses[page - 1]}
-              onChange={handleInputChange}
-              placeholder={placeholders[page - 1]}
-              rows="5"
-            />
-            {!isValid && <p className="validation-message">Please provide at least 5 words.</p>}
-            <br />
-            <button className="button" onClick={handleNext} disabled={loading}>
-              {loading ? 'Generating...' : (page < questions.length ? 'Next' : 'Submit')}
-            </button>
-          </div>
-          <div className="progress-dots">
-            {questions.map((_, index) => (
-              <span key={index} className={`dot ${index < page ? 'active' : ''}`} onClick={() => handleDotClick(index)}></span>
-            ))}
-          </div>
+          <h2>Upload Resume and Answer Questions</h2>
+          <input type="file" onChange={handleResumeUpload} />
+          {candidateQuestions.map((question, index) => (
+            <div key={index} className={`question-container ${!isValid ? 'shake' : ''}`}>
+              <h2>Question {index + 1}</h2>
+              <p>{question}</p>
+              <textarea
+                className={`input-box ${!isValid ? 'invalid' : ''}`}
+                value={candidateResponses[index]}
+                onChange={(e) => handleCandidateInputChange(e, index)}
+                placeholder="Type your answer here"
+                rows="5"
+              />
+              {!isValid && <p className="validation-message">Please provide at least 5 words.</p>}
+            </div>
+          ))}
+          <br />
+          <button className="button" onClick={handleResumeSubmit} disabled={loading}>
+            {loading ? 'Analyzing...' : 'Submit'}
+          </button>
         </>
       )}
     </div>
